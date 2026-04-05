@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIY LED Lampe v2</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌈</text></svg>">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: sans-serif;
+    max-width: 420px;
+    margin: 40px auto;
+    padding: 0 16px;
+    background: #111;
+    color: #eee;
+  }
+  h1 { font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { color: #aaa; font-size: 0.9em; margin-bottom: 20px; }
+
+  #connect-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #1a1a1a;
+    border-radius: 8px;
+  }
+  #connect-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #1565c0;
+    color: #fff;
+    font-size: 0.95em;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  #connect-btn.connected { background: #555; }
+  #ble-status {
+    font-size: 0.85em;
+    color: #aaa;
+  }
+  #ble-status.connected { color: #66bb6a; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  button.action {
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    color: #fff;
+    font-weight: bold;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+  }
+  button.action:disabled { cursor: not-allowed; }
+  body.connected button.action { opacity: 1; }
+
+  .start  { background: #2e7d32; }
+  .reset  { background: #555; }
+  .fire   { background: #bf360c; }
+  .pride  { background: #6a1b9a; }
+
+  .time-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .time-row input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 1em;
+    background: #222;
+    color: #eee;
+    text-align: center;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+  }
+  body.connected .time-row input { opacity: 1; }
+  .time-row button {
+    flex: 0 0 auto;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #1565c0;
+    color: #fff;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+  }
+  body.connected .time-row button { opacity: 1; }
+
+  .brightness-row {
+    margin-bottom: 16px;
+  }
+  .brightness-row label {
+    font-size: 0.85em;
+    color: #aaa;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .brightness-row input[type=range] {
+    width: 100%;
+    accent-color: #5c6bc0;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+  }
+  body.connected .brightness-row input[type=range] { opacity: 1; }
+
+  #status {
+    margin-top: 16px;
+    padding: 10px;
+    background: #222;
+    border-radius: 8px;
+    font-size: 0.85em;
+    color: #aaa;
+    min-height: 36px;
+  }
+
+  .info-box {
+    margin-top: 16px;
+    padding: 10px;
+    background: #1a1a2e;
+    border-left: 4px solid #5c6bc0;
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: #aaa;
+  }
+  .info-box a { color: #7986cb; }
+
+  .hint {
+    margin-top: 12px;
+    font-size: 0.8em;
+    color: #555;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>DIY LED Lampe v2</h1>
+<p class="subtitle">Steuerung per Bluetooth LE</p>
+
+<div id="connect-bar">
+  <button id="connect-btn" onclick="toggleConnect()">🔵 Verbinden</button>
+  <span id="ble-status">Nicht verbunden</span>
+</div>
+
+<div class="grid">
+  <button class="action start" onclick="send('start')" disabled>▶ Start</button>
+  <button class="action reset" onclick="send('reset')" disabled>■ Reset</button>
+  <button class="action fire"  onclick="send('fire')"  disabled>🔥 Fire</button>
+  <button class="action pride" onclick="send('pride')" disabled>🌈 Rainbow</button>
+</div>
+
+<div class="time-row">
+  <input type="number" id="mins" value="5" min="1" max="999" placeholder="Minuten" disabled>
+  <button onclick="setTime()" disabled id="time-btn">⏱ Zeit setzen</button>
+</div>
+
+<div class="brightness-row">
+  <label>Helligkeit: <span id="brightness-label">80%</span></label>
+  <input type="range" min="0" max="100" value="80" id="brightness"
+    oninput="onBrightness(this.value)" disabled>
+</div>
+
+<div id="status">Warte auf Verbindung …</div>
+
+<div class="info-box">
+  📖 Dokumentation:
+  <a href="https://wiki.cogneon.de/DIY_LED-Lampe" target="_blank">wiki.cogneon.de/DIY_LED-Lampe</a>
+</div>
+
+<p class="hint">Nur in Chrome / Edge verfügbar (Web Bluetooth API)</p>
+
+<script>
+  // Nordic UART Service UUIDs
+  const NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const NUS_TX      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // App → Lampe (RX auf ESP32)
+  const NUS_RX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Lampe → App (TX auf ESP32)
+
+  let device    = null;
+  let txChar    = null; // schreiben
+  let rxChar    = null; // lesen/notify
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  async function toggleConnect() {
+    if (device && device.gatt.connected) {
+      device.gatt.disconnect();
+      return;
+    }
+    try {
+      setStatus('Suche Gerät …');
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: 'DIY LED Lampe v2' }],
+        optionalServices: [NUS_SERVICE]
+      });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+
+      setStatus('Verbinde …');
+      const server  = await device.gatt.connect();
+      const service = await server.getPrimaryService(NUS_SERVICE);
+      txChar        = await service.getCharacteristic(NUS_TX);
+      rxChar        = await service.getCharacteristic(NUS_RX);
+
+      await rxChar.startNotifications();
+      rxChar.addEventListener('characteristicvaluechanged', onNotify);
+
+      onConnected();
+    } catch (e) {
+      setStatus('Fehler: ' + e.message);
+    }
+  }
+
+  function onConnected() {
+    document.body.classList.add('connected');
+    document.getElementById('connect-btn').textContent = '✕ Trennen';
+    document.getElementById('connect-btn').classList.add('connected');
+    document.getElementById('ble-status').textContent = device.name;
+    document.getElementById('ble-status').classList.add('connected');
+    document.querySelectorAll('button.action, #time-btn').forEach(b => b.disabled = false);
+    document.getElementById('mins').disabled = false;
+    document.getElementById('brightness').disabled = false;
+    setStatus('Verbunden mit ' + device.name);
+  }
+
+  function onDisconnected() {
+    document.body.classList.remove('connected');
+    document.getElementById('connect-btn').textContent = '🔵 Verbinden';
+    document.getElementById('connect-btn').classList.remove('connected');
+    document.getElementById('ble-status').textContent = 'Nicht verbunden';
+    document.getElementById('ble-status').classList.remove('connected');
+    document.querySelectorAll('button.action, #time-btn').forEach(b => b.disabled = true);
+    document.getElementById('mins').disabled = true;
+    document.getElementById('brightness').disabled = true;
+    setStatus('Verbindung getrennt.');
+    txChar = null; rxChar = null;
+  }
+
+  function onNotify(event) {
+    const value = decoder.decode(event.target.value).trim();
+    setStatus('← ' + value);
+  }
+
+  async function send(cmd) {
+    if (!txChar) return;
+    try {
+      await txChar.writeValue(encoder.encode(cmd + '\n'));
+      setStatus('→ ' + cmd);
+    } catch(e) {
+      setStatus('Sendefehler: ' + e.message);
+    }
+  }
+
+  function setTime() {
+    const m = document.getElementById('mins').value;
+    send('time' + m);
+  }
+
+  let brightnessTimer = null;
+  function onBrightness(val) {
+    document.getElementById('brightness-label').textContent = val + '%';
+    clearTimeout(brightnessTimer);
+    brightnessTimer = setTimeout(() => send('brightness' + val), 150);
+  }
+
+  function setStatus(msg) {
+    document.getElementById('status').textContent = msg;
+  }
+</script>
+</body>
+</html>
